@@ -13,11 +13,24 @@ const PlayPage: React.FC = () => {
 
   const loadModel = async (files: FileList | null) => {
     if (files && files[0]) {
-      const jsonFile = files[0];
-      const weightsFile = files[1];
-      const model = await tf.loadLayersModel(tf.io.browserFiles([jsonFile, weightsFile]));
-      setModel(model);
-      alert("Modelo carregado com sucesso!");
+      try {
+        const jsonFile = files[0];
+        const weightsFile = files[1];
+        
+        // Read the JSON file content
+        const jsonContent = await jsonFile.text();
+        
+        // Parse the JSON to ensure it's valid
+        JSON.parse(jsonContent);
+        
+        // If parsing succeeds, proceed with loading the model
+        const model = await tf.loadLayersModel(tf.io.browserFiles([jsonFile, weightsFile]));
+        setModel(model);
+        alert("Modelo carregado com sucesso!");
+      } catch (error) {
+        console.error("Erro ao carregar o modelo:", error);
+        alert(`Erro ao carregar o modelo: ${error.message}`);
+      }
     }
   };
 
