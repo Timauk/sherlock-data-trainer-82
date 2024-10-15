@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import * as tf from '@tensorflow/tfjs';
 import { Chart } from 'react-chartjs-2';
 import { Upload, BarChart2, Save } from 'lucide-react';
+import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
 
 const TrainingPage: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const [trainingProgress, setTrainingProgress] = useState(0);
   const [model, setModel] = useState<tf.LayersModel | null>(null);
+  const [logs, setLogs] = useState<{ epoch: number; loss: number; val_loss: number }[]>([]);
+  const chartRef = useRef<Chart | null>(null);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -19,24 +23,75 @@ const TrainingPage: React.FC = () => {
     queryKey: ['trainingData', file],
     queryFn: async () => {
       if (!file) return null;
-      // Implement CSV parsing logic here
-      return [];
+      const text = await file.text();
+      return processarCSV(text);
     },
     enabled: !!file,
   });
 
+  function processarCSV(text: string) {
+    const linhas = text.trim().split("\n").slice(1); // Ignorar cabeçalho
+    const dados = [];
+
+    for (const linha of linhas) {
+      const valores = linha.split(",");
+      const numeroConcurso = Number(valores[0]);  
+      const dataSorteio = new Date(valores[1].split("/").reverse().join("-")).getTime();  
+      const bolas = valores.slice(2, 17).map(Number);  
+
+      if (bolas.length === 15 && bolas.every(num => !isNaN(num))) {
+        dados.push({ numeroConcurso, dataSorteio, bolas });
+      }
+    }
+
+    if (dados.length === 0) {
+      throw new Error("Nenhum dado válido encontrado!");
+    }
+
+    return normalizarDados(dados);
+  }
+
+  function normalizarDados(dados: any[]) {
+    const maxConcurso = Math.max(...dados.map(d => d.numeroConcurso));
+    const minData = Math.min(...dados.map(d => d.dataSorteio));
+    const maxData = Math.max(...dados.map(d => d.dataSorteio));
+
+    return dados.map(d => ({
+      bolas: d.bolas.map(bola => bola / 25), // Normaliza as bolas
+      numeroConcurso: d.numeroConcurso / maxConcurso, // Normaliza o número do concurso
+      dataSorteio: (d.dataSorteio - minData) / (maxData - minData) // Normaliza a data
+    }));
+  }
+
   const startTraining = async () => {
     if (!trainingData) return;
 
+    const numeroDeBolas = trainingData[0].bolas.length;
+
     const newModel = tf.sequential();
-    // Add layers to the model
-    newModel.add(tf.layers.dense({ units: 128, activation: 'relu', inputShape: [17] }));
+    newModel.add(tf.layers.dense({ units: 128, activation: 'relu', inputShape: [numeroDeBolas + 2] }));
+    newModel.add(tf.layers.batchNormalization());
     newModel.add(tf.layers.dense({ units: 128, activation: 'relu' }));
-    newModel.add(tf.layers.dense({ units: 15, activation: 'sigmoid' }));
+    newModel.add(tf.layers.dense({ units: numeroDeBolas, activation: 'sigmoid' }));
 
     newModel.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
 
-    // Implement training logic here
+    const xs = tf.tensor2d(trainingData.map(d => [...d.bolas, d.numeroConcurso, d.dataSorteio]));
+    const ys = tf.tensor2d(trainingData.map(d => d.bolas));
+
+    await newModel.fit(xs, ys, {
+      epochs: 100,
+      validationSplit: 0.1,
+      callbacks: {
+        onEpochEnd: (epoch, log) => {
+          if (log) {
+            setTrainingProgress(Math.floor(((epoch + 1) / 100) * 100));
+            setLogs(prevLogs => [...prevLogs, { epoch: epoch + 1, loss: log.loss, val_loss: log.val_loss }]);
+          }
+        }
+      }
+    });
+
     setModel(newModel);
   };
 
@@ -46,8 +101,31 @@ const TrainingPage: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (chartRef.current) {
+      chartRef.current.data = {
+        labels: logs.map(log => log.epoch),
+        datasets: [
+          {
+            label: 'Loss',
+            data: logs.map(log => log.loss),
+            borderColor: 'rgb(255, 99, 132)',
+            backgroundColor: 'rgba(255, 99, 132, 0.5)',
+          },
+          {
+            label: 'Validation Loss',
+            data: logs.map(log => log.val_loss),
+            borderColor: 'rgb(53, 162, 235)',
+            backgroundColor: 'rgba(53, 162, 235, 0.5)',
+          },
+        ],
+      };
+      chartRef.current.update();
+    }
+  }, [logs]);
+
   return (
-    <div>
+    <div className="p-6">
       <h2 className="text-2xl font-bold mb-4">Página de Treinamento</h2>
       
       <div className="mb-4">
@@ -66,37 +144,67 @@ const TrainingPage: React.FC = () => {
         />
       </div>
 
-      <button
+      <Button
         onClick={startTraining}
         disabled={!trainingData}
         className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded mr-2"
       >
         <BarChart2 className="inline-block mr-2" />
         Iniciar Treinamento
-      </button>
+      </Button>
 
-      <button
+      <Button
         onClick={saveModel}
         disabled={!model}
         className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
       >
         <Save className="inline-block mr-2" />
         Salvar Modelo
-      </button>
+      </Button>
 
       {trainingProgress > 0 && (
         <div className="mt-4">
-          <div className="bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-            <div
-              className="bg-blue-600 h-2.5 rounded-full"
-              style={{ width: `${trainingProgress}%` }}
-            ></div>
-          </div>
+          <Progress value={trainingProgress} className="w-full" />
           <p className="text-center mt-2">{trainingProgress}% Concluído</p>
         </div>
       )}
 
-      {/* Add Chart component here for loss visualization */}
+      <div className="mt-8">
+        <h3 className="text-xl font-bold mb-4">Gráfico de Perda de Treinamento e Validação</h3>
+        <Chart
+          ref={chartRef}
+          type="line"
+          data={{
+            labels: [],
+            datasets: [
+              {
+                label: 'Loss',
+                data: [],
+                borderColor: 'rgb(255, 99, 132)',
+                backgroundColor: 'rgba(255, 99, 132, 0.5)',
+              },
+              {
+                label: 'Validation Loss',
+                data: [],
+                borderColor: 'rgb(53, 162, 235)',
+                backgroundColor: 'rgba(53, 162, 235, 0.5)',
+              },
+            ],
+          }}
+          options={{
+            responsive: true,
+            plugins: {
+              legend: {
+                position: 'top' as const,
+              },
+              title: {
+                display: true,
+                text: 'Perda de Treinamento e Validação',
+              },
+            },
+          }}
+        />
+      </div>
     </div>
   );
 };
