@@ -5,6 +5,7 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import HomePage from './pages/HomePage';
 import TrainingPage from './pages/TrainingPage';
+import PlayPage from './pages/PlayPage';
 
 const queryClient = new QueryClient();
 
@@ -18,6 +19,7 @@ const App: React.FC = () => {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/training" element={<TrainingPage />} />
+              <Route path="/play" element={<PlayPage />} />
             </Routes>
           </main>
           <Footer />

@@ -8,7 +8,8 @@ const Header: React.FC = () => {
         <h1 className="text-2xl font-bold">O Aprendiz - Treinamento de Sherlock</h1>
         <nav>
           <Link to="/" className="mr-4 hover:underline">Home</Link>
-          <Link to="/training" className="hover:underline">Treinamento</Link>
+          <Link to="/training" className="mr-4 hover:underline">Treinamento</Link>
+          <Link to="/play" className="hover:underline">Jogar</Link>
         </nav>
       </div>
     </header>
