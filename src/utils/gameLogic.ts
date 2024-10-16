@@ -1,6 +1,6 @@
 import * as tf from '@tensorflow/tfjs';
 
-let sharedModel: tf.LayersModel | null = null;
+let sharedModel: tf.Sequential | null = null;
 
 export async function createSharedModel() {
   if (!sharedModel) {
@@ -22,7 +22,7 @@ export function calculateDynamicReward(matches: number, totalPlayers: number): n
 export async function predictNumbers(input: number[]): Promise<number[]> {
   if (!sharedModel) await createSharedModel();
   const inputTensor = tf.tensor2d([input]);
-  const prediction = await sharedModel!.predict(inputTensor) as tf.Tensor;
+  const prediction = sharedModel!.predict(inputTensor) as tf.Tensor;
   const result = Array.from(await prediction.data());
   inputTensor.dispose();
   prediction.dispose();
