@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import * as tf from '@tensorflow/tfjs';
 import { Upload, Play, Pause, RotateCcw } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 
 const PlayPage: React.FC = () => {
   const [model, setModel] = useState<tf.LayersModel | null>(null);
@@ -10,6 +11,7 @@ const PlayPage: React.FC = () => {
   const [generation, setGeneration] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [evolutionData, setEvolutionData] = useState<any[]>([]);
 
   const loadModel = async (files: FileList | null) => {
     if (files && files[0]) {
@@ -17,13 +19,9 @@ const PlayPage: React.FC = () => {
         const jsonFile = files[0];
         const weightsFile = files[1];
         
-        // Read the JSON file content
         const jsonContent = await jsonFile.text();
-        
-        // Parse the JSON to ensure it's valid
         JSON.parse(jsonContent);
         
-        // If parsing succeeds, proceed with loading the model
         const model = await tf.loadLayersModel(tf.io.browserFiles([jsonFile, weightsFile]));
         setModel(model);
         alert("Modelo carregado com sucesso!");
@@ -42,7 +40,6 @@ const PlayPage: React.FC = () => {
   };
 
   const initializePlayers = () => {
-    // Inicializar 10 jogadores com pesos aleatórios
     const newPlayers = Array.from({ length: 10 }, (_, i) => ({
       id: i + 1,
       weights: tf.randomNormal([25]).arraySync(),
@@ -64,7 +61,34 @@ const PlayPage: React.FC = () => {
     setIsPlaying(false);
     setGeneration(1);
     setProgress(0);
+    setEvolutionData([]);
     initializePlayers();
+  };
+
+  const applyRewardAndPunishment = (player: any, acertos: number) => {
+    let reward = 0;
+    if (acertos === 13) reward = 50;
+    if (acertos === 14) reward = 100;
+    if (acertos === 15) reward = 200;
+    return { ...player, score: player.score + reward };
+  };
+
+  const evolveGeneration = () => {
+    // Simples evolução: copiar o melhor jogador e aplicar mutações aos outros
+    const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
+    const bestPlayer = sortedPlayers[0];
+    
+    const newPlayers = [
+      bestPlayer,
+      ...Array.from({ length: 9 }, () => ({
+        ...bestPlayer,
+        weights: bestPlayer.weights.map(w => w + (Math.random() - 0.5) * 0.1)
+      }))
+    ];
+    
+    setPlayers(newPlayers);
+    setGeneration(prev => prev + 1);
+    setEvolutionData(prev => [...prev, { generation: generation, score: bestPlayer.score }]);
   };
 
   useEffect(() => {
@@ -116,7 +140,7 @@ const PlayPage: React.FC = () => {
         <Progress value={progress} className="w-full" />
       </div>
 
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-5 gap-4 mb-8">
         {players.map(player => (
           <div key={player.id} className="bg-gray-100 p-4 rounded-lg">
             <h4 className="font-semibold">Jogador {player.id}</h4>
@@ -125,7 +149,17 @@ const PlayPage: React.FC = () => {
         ))}
       </div>
 
-      {/* Aqui você pode adicionar gráficos para acompanhar o desempenho das gerações */}
+      <div className="mb-8">
+        <h3 className="text-lg font-semibold mb-2">Evolução das Gerações</h3>
+        <LineChart width={600} height={300} data={evolutionData}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="generation" />
+          <YAxis />
+          <Tooltip />
+          <Legend />
+          <Line type="monotone" dataKey="score" stroke="#8884d8" />
+        </LineChart>
+      </div>
     </div>
   );
 };
