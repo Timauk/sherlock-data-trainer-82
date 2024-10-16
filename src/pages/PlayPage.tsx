@@ -8,6 +8,7 @@ import { createSharedModel, calculateDynamicReward, predictNumbers, processCSV }
 interface Player {
   id: number;
   score: number;
+  predictions: number[];
 }
 
 const PlayPage: React.FC = () => {
@@ -18,10 +19,11 @@ const PlayPage: React.FC = () => {
   const [evolutionData, setEvolutionData] = useState<any[]>([]);
   const [boardNumbers, setBoardNumbers] = useState<number[]>([]);
   const [csvData, setCsvData] = useState<number[][]>([]);
+  const [trainedModel, setTrainedModel] = useState<any>(null);
 
   useEffect(() => {
     initializePlayers();
-    createSharedModel();
+    createSharedModel().then(setTrainedModel);
   }, []);
 
   const loadCSV = async (file: File | null) => {
@@ -36,7 +38,8 @@ const PlayPage: React.FC = () => {
   const initializePlayers = () => {
     const newPlayers = Array.from({ length: 10 }, (_, i) => ({
       id: i + 1,
-      score: 0
+      score: 0,
+      predictions: []
     }));
     setPlayers(newPlayers);
   };
@@ -67,10 +70,15 @@ const PlayPage: React.FC = () => {
       : Array.from({ length: 15 }, () => Math.floor(Math.random() * 25) + 1);
     setBoardNumbers(newBoardNumbers);
 
-    const results = await Promise.all(players.map(player => playRound(newBoardNumbers)));
-    const updatedPlayers = players.map((player, index) => ({
-      ...player,
-      score: player.score + results[index]
+    const updatedPlayers = await Promise.all(players.map(async player => {
+      const predictions = await predictNumbers(newBoardNumbers);
+      const matches = predictions.filter(num => newBoardNumbers.includes(num)).length;
+      const reward = calculateDynamicReward(matches, players.length);
+      return {
+        ...player,
+        score: player.score + reward,
+        predictions
+      };
     }));
 
     setPlayers(updatedPlayers);
@@ -81,12 +89,6 @@ const PlayPage: React.FC = () => {
     } else {
       setTimeout(gameLoop, 100);
     }
-  };
-
-  const playRound = async (boardNumbers: number[]): Promise<number> => {
-    const playerNumbers = await predictNumbers(boardNumbers);
-    const matches = playerNumbers.filter(num => boardNumbers.includes(num)).length;
-    return calculateDynamicReward(matches, players.length);
   };
 
   const evolveGeneration = () => {
@@ -151,6 +153,7 @@ const PlayPage: React.FC = () => {
           <div key={player.id} className="bg-gray-100 p-4 rounded-lg">
             <h4 className="font-semibold">Jogador {player.id}</h4>
             <p>Pontuação: {player.score}</p>
+            <p>Previsões: {player.predictions.join(', ')}</p>
           </div>
         ))}
       </div>

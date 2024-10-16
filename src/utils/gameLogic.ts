@@ -35,3 +35,21 @@ export function processCSV(text: string): number[][] {
     line.split(',').map(Number).filter((_, index) => index > 1 && index <= 16)
   );
 }
+
+export async function trainModel(data: number[][]) {
+  const model = await createSharedModel();
+  const xs = tf.tensor2d(data.map(row => row.slice(0, 15)));
+  const ys = tf.tensor2d(data.map(row => row.slice(15)));
+  
+  await model.fit(xs, ys, {
+    epochs: 50,
+    batchSize: 32,
+    shuffle: true,
+    validationSplit: 0.2,
+  });
+
+  xs.dispose();
+  ys.dispose();
+  
+  return model;
+}
