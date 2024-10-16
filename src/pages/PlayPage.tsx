@@ -12,6 +12,7 @@ const PlayPage: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [evolutionData, setEvolutionData] = useState<any[]>([]);
+  const [boardNumbers, setBoardNumbers] = useState<number[]>([]);
 
   const loadModel = async (files: FileList | null) => {
     if (files && files[0]) {
@@ -32,17 +33,16 @@ const PlayPage: React.FC = () => {
     }
   };
 
-  const loadRealGames = (file: File | null) => {
-    if (file) {
-      // Implementar lógica para carregar jogos reais do CSV
-      alert("Jogos reais carregados!");
-    }
-  };
-
   const initializePlayers = () => {
     const newPlayers = Array.from({ length: 10 }, (_, i) => ({
       id: i + 1,
-      weights: tf.randomNormal([25]).arraySync(),
+      network: tf.sequential({
+        layers: [
+          tf.layers.dense({ inputShape: [25], units: 64, activation: 'relu' }),
+          tf.layers.dense({ units: 32, activation: 'relu' }),
+          tf.layers.dense({ units: 15, activation: 'sigmoid' })
+        ]
+      }),
       score: 0
     }));
     setPlayers(newPlayers);
@@ -50,7 +50,7 @@ const PlayPage: React.FC = () => {
 
   const playGame = () => {
     setIsPlaying(true);
-    // Implementar lógica de jogo aqui
+    gameLoop();
   };
 
   const pauseGame = () => {
@@ -62,29 +62,81 @@ const PlayPage: React.FC = () => {
     setGeneration(1);
     setProgress(0);
     setEvolutionData([]);
+    setBoardNumbers([]);
     initializePlayers();
   };
 
-  const applyRewardAndPunishment = (player: any, acertos: number) => {
-    let reward = 0;
-    if (acertos === 13) reward = 50;
-    if (acertos === 14) reward = 100;
-    if (acertos === 15) reward = 200;
-    return { ...player, score: player.score + reward };
+  const gameLoop = async () => {
+    if (!isPlaying) return;
+
+    const newBoardNumbers = Array.from({ length: 15 }, () => Math.floor(Math.random() * 25) + 1);
+    setBoardNumbers(newBoardNumbers);
+
+    const results = await Promise.all(players.map(player => playRound(player, newBoardNumbers)));
+    const updatedPlayers = players.map((player, index) => ({
+      ...player,
+      score: player.score + results[index].score
+    }));
+
+    setPlayers(updatedPlayers);
+    setProgress((prevProgress) => (prevProgress + 1) % 100);
+
+    if (progress === 99) {
+      evolveGeneration();
+    } else {
+      setTimeout(gameLoop, 100);
+    }
+  };
+
+  const playRound = async (player, boardNumbers) => {
+    const input = tf.tensor2d([boardNumbers]);
+    const prediction = await player.network.predict(input);
+    const playerNumbers = Array.from(await prediction.data());
+    const matches = playerNumbers.filter(num => boardNumbers.includes(num)).length;
+    return { score: calculateScore(matches) };
+  };
+
+  const calculateScore = (matches: number) => {
+    switch (matches) {
+      case 15: return 1000000;
+      case 14: return 100000;
+      case 13: return 10000;
+      case 12: return 1000;
+      case 11: return 100;
+      default: return 0;
+    }
   };
 
   const evolveGeneration = () => {
-    // Simples evolução: copiar o melhor jogador e aplicar mutações aos outros
     const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
     const bestPlayer = sortedPlayers[0];
     
     const newPlayers = [
       bestPlayer,
       ...Array.from({ length: 9 }, () => ({
-        ...bestPlayer,
-        weights: bestPlayer.weights.map(w => w + (Math.random() - 0.5) * 0.1)
+        id: Math.random(),
+        network: tf.sequential({
+          layers: [
+            tf.layers.dense({ inputShape: [25], units: 64, activation: 'relu' }),
+            tf.layers.dense({ units: 32, activation: 'relu' }),
+            tf.layers.dense({ units: 15, activation: 'sigmoid' })
+          ]
+        }),
+        score: 0
       }))
     ];
+    
+    newPlayers.slice(1).forEach(player => {
+      const weights = bestPlayer.network.getWeights();
+      const mutatedWeights = weights.map(w => {
+        return tf.tidy(() => {
+          const shape = w.shape;
+          const values = w.dataSync().map(v => v + (Math.random() - 0.5) * 0.1);
+          return tf.tensor(values, shape);
+        });
+      });
+      player.network.setWeights(mutatedWeights);
+    });
     
     setPlayers(newPlayers);
     setGeneration(prev => prev + 1);
@@ -111,16 +163,6 @@ const PlayPage: React.FC = () => {
             className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
           />
         </div>
-        <div>
-          <label htmlFor="gamesInput" className="block mb-2">Carregar Jogos Reais (CSV):</label>
-          <input
-            type="file"
-            id="gamesInput"
-            accept=".csv"
-            onChange={(e) => loadRealGames(e.target.files ? e.target.files[0] : null)}
-            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-          />
-        </div>
       </div>
 
       <div className="flex space-x-2 mb-4">
@@ -138,6 +180,17 @@ const PlayPage: React.FC = () => {
       <div className="mb-4">
         <h3 className="text-lg font-semibold mb-2">Progresso da Geração {generation}</h3>
         <Progress value={progress} className="w-full" />
+      </div>
+
+      <div className="mb-4">
+        <h3 className="text-lg font-semibold mb-2">Quadro (Banca)</h3>
+        <div className="bg-gray-100 p-4 rounded-lg">
+          {boardNumbers.map((number, index) => (
+            <span key={index} className="inline-block bg-blue-500 text-white rounded-full px-3 py-1 text-sm font-semibold mr-2 mb-2">
+              {number}
+            </span>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-5 gap-4 mb-8">
