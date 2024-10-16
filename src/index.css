@@ -75,3 +75,19 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes neon {
+  0%, 100% {
+    text-shadow: 0 0 7px #ff00de, 0 0 10px #ff00de, 0 0 21px #ff00de, 0 0 42px #ff00de,
+      0 0 82px #ff00de, 0 0 92px #ff00de, 0 0 102px #ff00de, 0 0 151px #ff00de;
+  }
+  50% {
+    text-shadow: 0 0 3px #ff00de, 0 0 5px #ff00de, 0 0 11px #ff00de, 0 0 22px #ff00de,
+      0 0 41px #ff00de, 0 0 46px #ff00de, 0 0 51px #ff00de, 0 0 76px #ff00de;
+  }
+}
+
+.neon-title {
+  color: #fff;
+  animation: neon 1.5s ease-in-out infinite alternate;
+}
