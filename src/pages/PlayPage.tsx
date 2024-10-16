@@ -1,48 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import * as tf from '@tensorflow/tfjs';
 import { Upload, Play, Pause, RotateCcw } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { createSharedModel, calculateDynamicReward, predictNumbers, processCSV } from '@/utils/gameLogic';
+
+interface Player {
+  id: number;
+  score: number;
+}
 
 const PlayPage: React.FC = () => {
-  const [model, setModel] = useState<tf.LayersModel | null>(null);
-  const [players, setPlayers] = useState<any[]>([]);
+  const [players, setPlayers] = useState<Player[]>([]);
   const [generation, setGeneration] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [evolutionData, setEvolutionData] = useState<any[]>([]);
   const [boardNumbers, setBoardNumbers] = useState<number[]>([]);
+  const [csvData, setCsvData] = useState<number[][]>([]);
 
-  const loadModel = async (files: FileList | null) => {
-    if (files && files[0]) {
-      try {
-        const jsonFile = files[0];
-        const weightsFile = files[1];
-        
-        const jsonContent = await jsonFile.text();
-        JSON.parse(jsonContent);
-        
-        const model = await tf.loadLayersModel(tf.io.browserFiles([jsonFile, weightsFile]));
-        setModel(model);
-        alert("Modelo carregado com sucesso!");
-      } catch (error) {
-        console.error("Erro ao carregar o modelo:", error);
-        alert(`Erro ao carregar o modelo: ${error.message}`);
-      }
+  useEffect(() => {
+    initializePlayers();
+    createSharedModel();
+  }, []);
+
+  const loadCSV = async (file: File | null) => {
+    if (file) {
+      const text = await file.text();
+      const data = processCSV(text);
+      setCsvData(data);
+      alert("CSV carregado com sucesso!");
     }
   };
 
   const initializePlayers = () => {
     const newPlayers = Array.from({ length: 10 }, (_, i) => ({
       id: i + 1,
-      network: tf.sequential({
-        layers: [
-          tf.layers.dense({ inputShape: [25], units: 64, activation: 'relu' }),
-          tf.layers.dense({ units: 32, activation: 'relu' }),
-          tf.layers.dense({ units: 15, activation: 'sigmoid' })
-        ]
-      }),
       score: 0
     }));
     setPlayers(newPlayers);
@@ -69,13 +62,15 @@ const PlayPage: React.FC = () => {
   const gameLoop = async () => {
     if (!isPlaying) return;
 
-    const newBoardNumbers = Array.from({ length: 15 }, () => Math.floor(Math.random() * 25) + 1);
+    const newBoardNumbers = csvData.length > 0 
+      ? csvData[Math.floor(Math.random() * csvData.length)]
+      : Array.from({ length: 15 }, () => Math.floor(Math.random() * 25) + 1);
     setBoardNumbers(newBoardNumbers);
 
-    const results = await Promise.all(players.map(player => playRound(player, newBoardNumbers)));
+    const results = await Promise.all(players.map(player => playRound(newBoardNumbers)));
     const updatedPlayers = players.map((player, index) => ({
       ...player,
-      score: player.score + results[index].score
+      score: player.score + results[index]
     }));
 
     setPlayers(updatedPlayers);
@@ -88,64 +83,23 @@ const PlayPage: React.FC = () => {
     }
   };
 
-  const playRound = async (player, boardNumbers) => {
-    const input = tf.tensor2d([boardNumbers]);
-    const prediction = await player.network.predict(input);
-    const playerNumbers = Array.from(await prediction.data());
+  const playRound = async (boardNumbers: number[]): Promise<number> => {
+    const playerNumbers = await predictNumbers(boardNumbers);
     const matches = playerNumbers.filter(num => boardNumbers.includes(num)).length;
-    return { score: calculateScore(matches) };
-  };
-
-  const calculateScore = (matches: number) => {
-    switch (matches) {
-      case 15: return 1000000;
-      case 14: return 100000;
-      case 13: return 10000;
-      case 12: return 1000;
-      case 11: return 100;
-      default: return 0;
-    }
+    return calculateDynamicReward(matches, players.length);
   };
 
   const evolveGeneration = () => {
-    const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
-    const bestPlayer = sortedPlayers[0];
-    
-    const newPlayers = [
-      bestPlayer,
-      ...Array.from({ length: 9 }, () => ({
-        id: Math.random(),
-        network: tf.sequential({
-          layers: [
-            tf.layers.dense({ inputShape: [25], units: 64, activation: 'relu' }),
-            tf.layers.dense({ units: 32, activation: 'relu' }),
-            tf.layers.dense({ units: 15, activation: 'sigmoid' })
-          ]
-        }),
-        score: 0
-      }))
-    ];
-    
-    newPlayers.slice(1).forEach(player => {
-      const weights = bestPlayer.network.getWeights();
-      const mutatedWeights = weights.map(w => {
-        return tf.tidy(() => {
-          const shape = w.shape;
-          const values = w.dataSync().map(v => v + (Math.random() - 0.5) * 0.1);
-          return tf.tensor(values, shape);
-        });
-      });
-      player.network.setWeights(mutatedWeights);
-    });
+    const bestScore = Math.max(...players.map(p => p.score));
+    const newPlayers = players.map(player => ({
+      ...player,
+      score: player.score === bestScore ? player.score : 0
+    }));
     
     setPlayers(newPlayers);
     setGeneration(prev => prev + 1);
-    setEvolutionData(prev => [...prev, { generation: generation, score: bestPlayer.score }]);
+    setEvolutionData(prev => [...prev, { generation, score: bestScore }]);
   };
-
-  useEffect(() => {
-    initializePlayers();
-  }, []);
 
   return (
     <div className="p-6">
@@ -153,13 +107,12 @@ const PlayPage: React.FC = () => {
       
       <div className="mb-4 space-y-2">
         <div>
-          <label htmlFor="modelInput" className="block mb-2">Carregar Modelo (.json e .bin):</label>
+          <label htmlFor="csvInput" className="block mb-2">Carregar CSV de Jogos:</label>
           <input
             type="file"
-            id="modelInput"
-            accept=".json,.bin"
-            multiple
-            onChange={(e) => loadModel(e.target.files)}
+            id="csvInput"
+            accept=".csv"
+            onChange={(e) => loadCSV(e.target.files ? e.target.files[0] : null)}
             className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
           />
         </div>
