@@ -5,6 +5,7 @@ import { Upload, Play, Pause, RotateCcw, Moon } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { createSharedModel, calculateDynamicReward, predictNumbers, processCSV, trainModel } from '@/utils/gameLogic';
 import { useTheme } from 'next-themes';
+import * as tf from '@tensorflow/tfjs';
 
 interface Player {
   id: number;
@@ -20,7 +21,7 @@ const PlayPage: React.FC = () => {
   const [evolutionData, setEvolutionData] = useState<any[]>([]);
   const [boardNumbers, setBoardNumbers] = useState<number[]>([]);
   const [csvData, setCsvData] = useState<number[][]>([]);
-  const [trainedModel, setTrainedModel] = useState<any>(null);
+  const [trainedModel, setTrainedModel] = useState<tf.LayersModel | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const { theme, setTheme } = useTheme();
 
