@@ -28,6 +28,7 @@ const PlayPage: React.FC = () => {
   const [csvDates, setCsvDates] = useState<Date[]>([]);
   const [trainedModel, setTrainedModel] = useState<tf.LayersModel | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
+  const [currentCsvIndex, setCurrentCsvIndex] = useState(0);
   const { theme, setTheme } = useTheme();
 
   useEffect(() => {
@@ -47,6 +48,7 @@ const PlayPage: React.FC = () => {
       const dataWithFeatures = addDerivedFeatures(normalizedData);
       setCsvData(dataWithFeatures);
       setCsvDates(dates);
+      setCurrentCsvIndex(0);
       addLog("CSV carregado e processado com sucesso!");
       addLog(`Número de registros carregados: ${dataWithFeatures.length}`);
     } catch (error) {
@@ -96,6 +98,7 @@ const PlayPage: React.FC = () => {
     setProgress(0);
     setEvolutionData([]);
     setBoardNumbers([]);
+    setCurrentCsvIndex(0);
     initializePlayers();
     setLogs([]);
     addLog("Jogo reiniciado.");
@@ -107,9 +110,14 @@ const PlayPage: React.FC = () => {
       return;
     }
 
-    const randomIndex = Math.floor(Math.random() * csvData.length);
-    const newBoardNumbers = denormalizeData([csvData[randomIndex]])[0];
+    if (currentCsvIndex >= csvData.length) {
+      addLog("Todos os dados do CSV foram utilizados. Reiniciando o índice.");
+      setCurrentCsvIndex(0);
+    }
+
+    const newBoardNumbers = denormalizeData([csvData[currentCsvIndex]])[0];
     setBoardNumbers(newBoardNumbers);
+    addLog(`Banca sorteou os números: ${newBoardNumbers.join(', ')}`);
 
     const normalizedInput = normalizeData([newBoardNumbers])[0];
     const inputTensor = tf.tensor2d([normalizedInput]);
@@ -134,6 +142,7 @@ const PlayPage: React.FC = () => {
       addLog(`Progresso: ${newProgress}%`);
       return newProgress;
     });
+    setCurrentCsvIndex(prevIndex => prevIndex + 1);
 
     if (progress === 99) {
       evolveGeneration();
