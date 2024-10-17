@@ -55,10 +55,15 @@ const PlayPage: React.FC = () => {
     addLog("CSV carregado e processado com sucesso!");
   };
 
-  const loadModel = async (jsonFile: File, binFile: File) => {
-    const model = await tf.loadLayersModel(tf.io.browserFiles([jsonFile, binFile]));
-    setTrainedModel(model);
-    addLog("Modelo treinado carregado com sucesso!");
+  const loadModel = async (jsonFile: File, weightsFile: File) => {
+    try {
+      const model = await tf.loadLayersModel(tf.io.browserFiles([jsonFile, weightsFile]));
+      setTrainedModel(model);
+      addLog("Modelo treinado carregado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao carregar o modelo:", error);
+      addLog("Erro ao carregar o modelo. Verifique o console para mais detalhes.");
+    }
   };
 
   const initializePlayers = () => {
