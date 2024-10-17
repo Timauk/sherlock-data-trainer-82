@@ -24,6 +24,7 @@ const PlayPage: React.FC = () => {
     generation,
     evolutionData,
     boardNumbers,
+    concursoNumber,
     setGeneration,
     setEvolutionData,
     setBoardNumbers,
@@ -131,6 +132,7 @@ const PlayPage: React.FC = () => {
 
       <GameBoard
         boardNumbers={boardNumbers}
+        concursoNumber={concursoNumber}
         players={players}
         evolutionData={evolutionData}
       />
