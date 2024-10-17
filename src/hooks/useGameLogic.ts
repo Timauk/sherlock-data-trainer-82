@@ -29,12 +29,13 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
       setCurrentCsvIndex(0);
     }
 
-    const newBoardNumbers = csvData[currentCsvIndex];
+    // Usar os números não normalizados para a banca
+    const newBoardNumbers = csvData[currentCsvIndex].slice(0, 15).map(num => Math.round(num * 24) + 1);
     setBoardNumbers(newBoardNumbers);
     addLog(`Banca sorteou os números: ${newBoardNumbers.join(', ')}`);
 
-    // Ensure we're using only the first 15 numbers and the last 2 values (assuming they are date and concurso number)
-    const inputData = [...newBoardNumbers.slice(0, 15), newBoardNumbers[newBoardNumbers.length - 2], newBoardNumbers[newBoardNumbers.length - 1]];
+    // Normalizar os dados apenas para a entrada do modelo
+    const inputData = [...csvData[currentCsvIndex].slice(0, 15), csvData[currentCsvIndex][csvData[currentCsvIndex].length - 2], csvData[currentCsvIndex][csvData[currentCsvIndex].length - 1]];
     const normalizedInput = normalizeData([inputData])[0];
     const inputTensor = tf.tensor2d([normalizedInput]);
     
@@ -68,10 +69,7 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     }));
     
     setPlayers(newPlayers);
-    setGeneration(prev => {
-      const newGeneration = prev + 1;
-      return newGeneration;
-    });
+    setGeneration(prev => prev + 1);
     setEvolutionData(prev => [...prev, { generation, score: bestScore }]);
   }, [players, generation]);
 
