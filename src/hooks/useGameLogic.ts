@@ -2,8 +2,15 @@ import { useState, useCallback, useEffect } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import { normalizeData, denormalizeData, createModel } from '@/utils/aiModel';
 
+interface Player {
+  id: number;
+  score: number;
+  predictions: number[];
+  model: tf.LayersModel;
+}
+
 export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel | null) => {
-  const [players, setPlayers] = useState<{ id: number; score: number; predictions: number[] }[]>([]);
+  const [players, setPlayers] = useState<Player[]>([]);
   const [generation, setGeneration] = useState(1);
   const [evolutionData, setEvolutionData] = useState<any[]>([]);
   const [boardNumbers, setBoardNumbers] = useState<number[]>([]);
