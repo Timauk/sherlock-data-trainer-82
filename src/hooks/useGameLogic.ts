@@ -47,7 +47,7 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     const inputData = [...csvData[currentCsvIndex].slice(2, 17), csvData[currentCsvIndex][1]]; // Incluindo a data do sorteio
     const normalizedInput = normalizeData([inputData])[0];
     // Adjust the input shape to match the model's expectation: [null,null,17]
-    const inputTensor = tf.tensor3d([normalizedInput], [1, 1, 17]);
+    const inputTensor = tf.tensor3d([normalizedInput], [1, 1, normalizedInput.length]);
     
     const updatedPlayers = await Promise.all(players.map(async player => {
       // Aplicar parâmetros aleatórios ao modelo do jogador
