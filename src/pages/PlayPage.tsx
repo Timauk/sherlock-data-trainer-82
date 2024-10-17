@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Upload, Play, Pause, RotateCcw, Moon } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { createSharedModel, calculateDynamicReward, predictNumbers, processCSV, trainModel } from '@/utils/gameLogic';
 import { useTheme } from 'next-themes';
 import * as tf from '@tensorflow/tfjs';
+import DataUploader from '@/components/DataUploader';
+import GameControls from '@/components/GameControls';
+import { createModel, trainModel, normalizeData, denormalizeData, addDerivedFeatures, TrainingConfig } from '@/utils/aiModel';
 
 interface Player {
   id: number;
@@ -27,28 +27,26 @@ const PlayPage: React.FC = () => {
 
   useEffect(() => {
     initializePlayers();
-    createSharedModel().then(setTrainedModel);
+    createModel().then(setTrainedModel);
   }, []);
 
   const addLog = (message: string) => {
     setLogs(prevLogs => [...prevLogs, message]);
   };
 
-  const loadCSV = async (file: File | null) => {
-    if (file) {
-      const text = await file.text();
-      const data = processCSV(text);
-      setCsvData(data);
-      addLog("CSV carregado com sucesso!");
-    }
+  const loadCSV = async (file: File) => {
+    const text = await file.text();
+    const data = processCSV(text);
+    const normalizedData = normalizeData(data);
+    const dataWithFeatures = addDerivedFeatures(normalizedData);
+    setCsvData(dataWithFeatures);
+    addLog("CSV carregado e processado com sucesso!");
   };
 
-  const loadModel = async (jsonFile: File | null, binFile: File | null) => {
-    if (jsonFile && binFile) {
-      const model = await tf.loadLayersModel(tf.io.browserFiles([jsonFile, binFile]));
-      setTrainedModel(model);
-      addLog("Modelo treinado carregado com sucesso!");
-    }
+  const loadModel = async (jsonFile: File, binFile: File) => {
+    const model = await tf.loadLayersModel(tf.io.browserFiles([jsonFile, binFile]));
+    setTrainedModel(model);
+    addLog("Modelo treinado carregado com sucesso!");
   };
 
   const initializePlayers = () => {
@@ -80,24 +78,29 @@ const PlayPage: React.FC = () => {
   };
 
   const gameLoop = async () => {
-    if (!isPlaying) return;
+    if (!isPlaying || !trainedModel) return;
 
     const newBoardNumbers = csvData.length > 0 
-      ? csvData[Math.floor(Math.random() * csvData.length)]
+      ? denormalizeData([csvData[Math.floor(Math.random() * csvData.length)]])[0]
       : Array.from({ length: 15 }, () => Math.floor(Math.random() * 25) + 1);
     setBoardNumbers(newBoardNumbers);
 
-    const updatedPlayers = await Promise.all(players.map(async player => {
-      const predictions = await predictNumbers(newBoardNumbers);
-      const matches = predictions.filter(num => newBoardNumbers.includes(num)).length;
+    const normalizedInput = normalizeData([newBoardNumbers])[0];
+    const inputTensor = tf.tensor2d([normalizedInput]);
+    const predictions = await trainedModel.predict(inputTensor) as tf.Tensor;
+    const denormalizedPredictions = denormalizeData(await predictions.array())[0];
+
+    const updatedPlayers = players.map(player => {
+      const playerPredictions = denormalizedPredictions.map(Math.round);
+      const matches = playerPredictions.filter(num => newBoardNumbers.includes(num)).length;
       const reward = calculateDynamicReward(matches, players.length);
       addLog(`Jogador ${player.id}: ${matches} acertos, recompensa ${reward}`);
       return {
         ...player,
         score: player.score + reward,
-        predictions
+        predictions: playerPredictions
       };
-    }));
+    });
 
     setPlayers(updatedPlayers);
     setProgress((prevProgress) => (prevProgress + 1) % 100);
@@ -107,6 +110,9 @@ const PlayPage: React.FC = () => {
     } else {
       setTimeout(gameLoop, 100);
     }
+
+    inputTensor.dispose();
+    predictions.dispose();
   };
 
   const evolveGeneration = () => {
@@ -122,54 +128,25 @@ const PlayPage: React.FC = () => {
     addLog(`Geração ${generation} concluída. Melhor pontuação: ${bestScore}`);
   };
 
+  const calculateDynamicReward = (matches: number, totalPlayers: number): number => {
+    const baseReward = Math.pow(10, matches - 10);
+    const competitionFactor = 1 + (totalPlayers / 100);
+    return Math.round(baseReward * competitionFactor);
+  };
+
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-4 neon-title">SHERLOK</h2>
       
-      <div className="mb-4 space-y-2">
-        <div>
-          <label htmlFor="csvInput" className="block mb-2">Carregar CSV de Jogos:</label>
-          <input
-            type="file"
-            id="csvInput"
-            accept=".csv"
-            onChange={(e) => loadCSV(e.target.files ? e.target.files[0] : null)}
-            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-          />
-        </div>
-        <div>
-          <label htmlFor="modelInput" className="block mb-2">Carregar Modelo Treinado:</label>
-          <input
-            type="file"
-            id="modelJsonInput"
-            accept=".json"
-            onChange={(e) => loadModel(e.target.files ? e.target.files[0] : null, null)}
-            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-          />
-          <input
-            type="file"
-            id="modelBinInput"
-            accept=".bin"
-            onChange={(e) => loadModel(null, e.target.files ? e.target.files[0] : null)}
-            className="block w-full mt-2 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-          />
-        </div>
-      </div>
+      <DataUploader onCsvUpload={loadCSV} onModelUpload={loadModel} />
 
-      <div className="flex space-x-2 mb-4">
-        <Button onClick={playGame} disabled={isPlaying}>
-          <Play className="mr-2 h-4 w-4" /> Iniciar
-        </Button>
-        <Button onClick={pauseGame} disabled={!isPlaying}>
-          <Pause className="mr-2 h-4 w-4" /> Pausar
-        </Button>
-        <Button onClick={resetGame}>
-          <RotateCcw className="mr-2 h-4 w-4" /> Reiniciar
-        </Button>
-        <Button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-          <Moon className="mr-2 h-4 w-4" /> Alternar Tema
-        </Button>
-      </div>
+      <GameControls
+        isPlaying={isPlaying}
+        onPlay={playGame}
+        onPause={pauseGame}
+        onReset={resetGame}
+        onThemeToggle={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+      />
 
       <div className="mb-4">
         <h3 className="text-lg font-semibold mb-2">Progresso da Geração {generation}</h3>
