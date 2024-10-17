@@ -22,7 +22,7 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
       id: i + 1,
       score: 0,
       predictions: [],
-      model: createModel() // Cada jogador tem seu próprio modelo
+      model: createModel()
     }));
     setPlayers(newPlayers);
   }, []);
@@ -38,7 +38,7 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
       setCurrentCsvIndex(0);
     }
 
-    // Usar os números não normalizados diretamente do CSV para a banca
+    // Usar os números diretamente do CSV para a banca
     const newBoardNumbers = csvData[currentCsvIndex].slice(2, 17);
     setBoardNumbers(newBoardNumbers);
     setConcursoNumber(csvData[currentCsvIndex][0]); // Assumindo que o número do concurso é o primeiro elemento
@@ -46,15 +46,14 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
 
     const inputData = [...csvData[currentCsvIndex].slice(2, 17), csvData[currentCsvIndex][1]]; // Incluindo a data do sorteio
     const normalizedInput = normalizeData([inputData])[0];
-    // Adjust the input shape to match the model's expectation
-    const inputTensor = tf.tensor3d([normalizedInput], [1, 1, 17]);
+    const inputTensor = tf.tensor2d([normalizedInput]);
     
     const updatedPlayers = await Promise.all(players.map(async player => {
       // Aplicar parâmetros aleatórios ao modelo do jogador
       const randomizedModel = await randomizeModelParams(player.model);
       const predictions = await randomizedModel.predict(inputTensor) as tf.Tensor;
       const denormalizedPredictions = denormalizeData(await predictions.array() as number[][]);
-      const playerPredictions = denormalizedPredictions[0].map(num => Math.round(num * 24) + 1); // Normalizar entre 1 e 25
+      const playerPredictions = denormalizedPredictions[0].map(num => Math.round(num));
       const matches = playerPredictions.filter(num => newBoardNumbers.includes(num)).length;
       const reward = calculateDynamicReward(matches);
       addLog(`Jogador ${player.id}: ${matches} acertos, recompensa ${reward}`);
