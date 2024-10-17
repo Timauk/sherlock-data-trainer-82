@@ -24,6 +24,9 @@ const PlayPage: React.FC = () => {
     generation,
     evolutionData,
     boardNumbers,
+    setGeneration,
+    setEvolutionData,
+    setBoardNumbers,
     initializePlayers,
     gameLoop,
     evolveGeneration

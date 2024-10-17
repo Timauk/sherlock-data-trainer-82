@@ -29,12 +29,11 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
       setCurrentCsvIndex(0);
     }
 
-    const newBoardNumbers = denormalizeData([csvData[currentCsvIndex]])[0];
+    const newBoardNumbers = csvData[currentCsvIndex];
     setBoardNumbers(newBoardNumbers);
     addLog(`Banca sorteou os números: ${newBoardNumbers.join(', ')}`);
 
-    const normalizedInput = normalizeData([newBoardNumbers])[0];
-    const inputTensor = tf.tensor2d([normalizedInput]);
+    const inputTensor = tf.tensor2d([newBoardNumbers]);
     const predictions = await trainedModel.predict(inputTensor) as tf.Tensor;
     const denormalizedPredictions = denormalizeData(await predictions.array() as number[][]);
 
@@ -83,6 +82,9 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     generation,
     evolutionData,
     boardNumbers,
+    setGeneration,
+    setEvolutionData,
+    setBoardNumbers,
     initializePlayers,
     gameLoop,
     evolveGeneration
