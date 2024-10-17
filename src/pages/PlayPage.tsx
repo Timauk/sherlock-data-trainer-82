@@ -5,7 +5,7 @@ import * as tf from '@tensorflow/tfjs';
 import DataUploader from '@/components/DataUploader';
 import GameControls from '@/components/GameControls';
 import { createModel, trainModel, normalizeData, denormalizeData, addDerivedFeatures, TrainingConfig } from '@/utils/aiModel';
-import { processCSV } from '@/utils/csvUtils';
+import { processCSV, extractDateFromCSV } from '@/utils/csvUtils';
 import PlayerList from '@/components/PlayerList';
 import BoardDisplay from '@/components/BoardDisplay';
 import EvolutionChart from '@/components/EvolutionChart';
@@ -25,6 +25,7 @@ const PlayPage: React.FC = () => {
   const [evolutionData, setEvolutionData] = useState<any[]>([]);
   const [boardNumbers, setBoardNumbers] = useState<number[]>([]);
   const [csvData, setCsvData] = useState<number[][]>([]);
+  const [csvDates, setCsvDates] = useState<Date[]>([]);
   const [trainedModel, setTrainedModel] = useState<tf.LayersModel | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const { theme, setTheme } = useTheme();
@@ -35,7 +36,7 @@ const PlayPage: React.FC = () => {
   }, []);
 
   const initializeModel = async () => {
-    const model = await createModel();
+    const model = createModel();
     setTrainedModel(model);
   };
 
@@ -46,9 +47,11 @@ const PlayPage: React.FC = () => {
   const loadCSV = async (file: File) => {
     const text = await file.text();
     const data = processCSV(text);
+    const dates = extractDateFromCSV(text);
     const normalizedData = normalizeData(data);
     const dataWithFeatures = addDerivedFeatures(normalizedData);
     setCsvData(dataWithFeatures);
+    setCsvDates(dates);
     addLog("CSV carregado e processado com sucesso!");
   };
 
@@ -89,9 +92,8 @@ const PlayPage: React.FC = () => {
   const gameLoop = async () => {
     if (!isPlaying || !trainedModel) return;
 
-    const newBoardNumbers = csvData.length > 0 
-      ? denormalizeData([csvData[Math.floor(Math.random() * csvData.length)]])[0]
-      : Array.from({ length: 15 }, () => Math.floor(Math.random() * 25) + 1);
+    const randomIndex = Math.floor(Math.random() * csvData.length);
+    const newBoardNumbers = denormalizeData([csvData[randomIndex]])[0];
     setBoardNumbers(newBoardNumbers);
 
     const normalizedInput = normalizeData([newBoardNumbers])[0];
