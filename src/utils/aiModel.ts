@@ -9,8 +9,8 @@ export interface TrainingConfig {
 
 export function createModel(): tf.LayersModel {
   const model = tf.sequential();
-  model.add(tf.layers.dense({ units: 128, activation: 'relu', inputShape: [15] }));
-  model.add(tf.layers.dropout({ rate: 0.2 }));
+  model.add(tf.layers.lstm({ units: 64, inputShape: [null, 17], returnSequences: true }));
+  model.add(tf.layers.lstm({ units: 32 }));
   model.add(tf.layers.dense({ units: 64, activation: 'relu' }));
   model.add(tf.layers.dropout({ rate: 0.2 }));
   model.add(tf.layers.dense({ units: 15, activation: 'sigmoid' }));
@@ -23,8 +23,8 @@ export async function trainModel(
   data: number[][],
   config: TrainingConfig
 ): Promise<tf.History> {
-  const xs = tf.tensor2d(data.map(row => row.slice(0, 15)));
-  const ys = tf.tensor2d(data.map(row => row.slice(15)));
+  const xs = tf.tensor3d(data.map(row => [row.slice(0, 17)]));
+  const ys = tf.tensor2d(data.map(row => row.slice(17)));
 
   const history = await model.fit(xs, ys, {
     epochs: config.epochs,
@@ -40,7 +40,7 @@ export async function trainModel(
 }
 
 export function normalizeData(data: number[][]): number[][] {
-  const maxValue = 25; // Assuming the maximum number in the lottery is 25
+  const maxValue = 25;
   return data.map(row => row.map(n => n / maxValue));
 }
 

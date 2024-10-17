@@ -29,21 +29,19 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
       setCurrentCsvIndex(0);
     }
 
-    // Usar os números não normalizados para a banca
-    const newBoardNumbers = csvData[currentCsvIndex].slice(0, 15).map(num => Math.round(num * 24) + 1);
+    const newBoardNumbers = csvData[currentCsvIndex].slice(0, 15);
     setBoardNumbers(newBoardNumbers);
     addLog(`Banca sorteou os números: ${newBoardNumbers.join(', ')}`);
 
-    // Normalizar os dados apenas para a entrada do modelo
     const inputData = [...csvData[currentCsvIndex].slice(0, 15), csvData[currentCsvIndex][csvData[currentCsvIndex].length - 2], csvData[currentCsvIndex][csvData[currentCsvIndex].length - 1]];
     const normalizedInput = normalizeData([inputData])[0];
-    const inputTensor = tf.tensor2d([normalizedInput]);
+    const inputTensor = tf.tensor3d([[normalizedInput]]);
     
     const predictions = await trainedModel.predict(inputTensor) as tf.Tensor;
     const denormalizedPredictions = denormalizeData(await predictions.array() as number[][]);
 
     const updatedPlayers = players.map(player => {
-      const playerPredictions = denormalizedPredictions[0].map(Math.round);
+      const playerPredictions = denormalizedPredictions[0].map(num => Math.round(num));
       const matches = playerPredictions.filter(num => newBoardNumbers.includes(num)).length;
       const reward = calculateDynamicReward(matches, players.length);
       addLog(`Jogador ${player.id}: ${matches} acertos, recompensa ${reward}`);
@@ -57,9 +55,19 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     setPlayers(updatedPlayers);
     setCurrentCsvIndex(prevIndex => prevIndex + 1);
 
+    // Atualizar o gráfico de evolução em tempo real para cada jogador
+    setEvolutionData(prev => [
+      ...prev,
+      ...updatedPlayers.map(player => ({
+        generation,
+        playerId: player.id,
+        score: player.score
+      }))
+    ]);
+
     inputTensor.dispose();
     predictions.dispose();
-  }, [players, currentCsvIndex, csvData, trainedModel]);
+  }, [players, currentCsvIndex, csvData, trainedModel, generation]);
 
   const evolveGeneration = useCallback(() => {
     const bestScore = Math.max(...players.map(p => p.score));
@@ -70,8 +78,7 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     
     setPlayers(newPlayers);
     setGeneration(prev => prev + 1);
-    setEvolutionData(prev => [...prev, { generation, score: bestScore }]);
-  }, [players, generation]);
+  }, [players]);
 
   const calculateDynamicReward = (matches: number, totalPlayers: number): number => {
     const baseReward = Math.pow(10, matches - 10);
