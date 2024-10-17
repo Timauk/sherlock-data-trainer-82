@@ -32,13 +32,7 @@ const PlayPage: React.FC = () => {
 
   useEffect(() => {
     initializePlayers();
-    initializeModel();
   }, []);
-
-  const initializeModel = async () => {
-    const model = createModel();
-    setTrainedModel(model);
-  };
 
   const addLog = (message: string) => {
     setLogs(prevLogs => [...prevLogs, message]);
@@ -53,6 +47,7 @@ const PlayPage: React.FC = () => {
     setCsvData(dataWithFeatures);
     setCsvDates(dates);
     addLog("CSV carregado e processado com sucesso!");
+    addLog(`Número de registros carregados: ${dataWithFeatures.length}`);
   };
 
   const loadModel = async (jsonFile: File, weightsFile: File) => {
@@ -73,15 +68,18 @@ const PlayPage: React.FC = () => {
       predictions: []
     }));
     setPlayers(newPlayers);
+    addLog("Jogadores inicializados.");
   };
 
   const playGame = () => {
     setIsPlaying(true);
+    addLog("Jogo iniciado.");
     gameLoop();
   };
 
   const pauseGame = () => {
     setIsPlaying(false);
+    addLog("Jogo pausado.");
   };
 
   const resetGame = () => {
@@ -92,10 +90,14 @@ const PlayPage: React.FC = () => {
     setBoardNumbers([]);
     initializePlayers();
     setLogs([]);
+    addLog("Jogo reiniciado.");
   };
 
   const gameLoop = async () => {
-    if (!isPlaying || !trainedModel) return;
+    if (!isPlaying || !trainedModel || csvData.length === 0) {
+      addLog("Não é possível iniciar o jogo. Verifique se o modelo e os dados CSV foram carregados.");
+      return;
+    }
 
     const randomIndex = Math.floor(Math.random() * csvData.length);
     const newBoardNumbers = denormalizeData([csvData[randomIndex]])[0];
@@ -119,7 +121,11 @@ const PlayPage: React.FC = () => {
     });
 
     setPlayers(updatedPlayers);
-    setProgress((prevProgress) => (prevProgress + 1) % 100);
+    setProgress((prevProgress) => {
+      const newProgress = (prevProgress + 1) % 100;
+      addLog(`Progresso: ${newProgress}%`);
+      return newProgress;
+    });
 
     if (progress === 99) {
       evolveGeneration();
@@ -139,9 +145,12 @@ const PlayPage: React.FC = () => {
     }));
     
     setPlayers(newPlayers);
-    setGeneration(prev => prev + 1);
+    setGeneration(prev => {
+      const newGeneration = prev + 1;
+      addLog(`Geração ${newGeneration} iniciada. Melhor pontuação da geração anterior: ${bestScore}`);
+      return newGeneration;
+    });
     setEvolutionData(prev => [...prev, { generation, score: bestScore }]);
-    addLog(`Geração ${generation} concluída. Melhor pontuação: ${bestScore}`);
   };
 
   const calculateDynamicReward = (matches: number, totalPlayers: number): number => {
