@@ -1,43 +1,41 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from 'next-themes';
 import * as tf from '@tensorflow/tfjs';
 import DataUploader from '@/components/DataUploader';
 import GameControls from '@/components/GameControls';
-import { createModel, trainModel, normalizeData, denormalizeData, addDerivedFeatures, TrainingConfig } from '@/utils/aiModel';
-import { processCSV, extractDateFromCSV } from '@/utils/csvUtils';
-import PlayerList from '@/components/PlayerList';
-import BoardDisplay from '@/components/BoardDisplay';
-import EvolutionChart from '@/components/EvolutionChart';
+import GameBoard from '@/components/GameBoard';
 import LogDisplay from '@/components/LogDisplay';
 import { Progress } from "@/components/ui/progress";
-
-interface Player {
-  id: number;
-  score: number;
-  predictions: number[];
-}
+import { useGameLogic } from '@/hooks/useGameLogic';
+import { processCSV, extractDateFromCSV } from '@/utils/csvUtils';
+import { normalizeData, addDerivedFeatures } from '@/utils/aiModel';
 
 const PlayPage: React.FC = () => {
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [generation, setGeneration] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [evolutionData, setEvolutionData] = useState<any[]>([]);
-  const [boardNumbers, setBoardNumbers] = useState<number[]>([]);
   const [csvData, setCsvData] = useState<number[][]>([]);
   const [csvDates, setCsvDates] = useState<Date[]>([]);
   const [trainedModel, setTrainedModel] = useState<tf.LayersModel | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
-  const [currentCsvIndex, setCurrentCsvIndex] = useState(0);
   const { theme, setTheme } = useTheme();
+
+  const {
+    players,
+    generation,
+    evolutionData,
+    boardNumbers,
+    initializePlayers,
+    gameLoop,
+    evolveGeneration
+  } = useGameLogic(csvData, trainedModel);
 
   useEffect(() => {
     initializePlayers();
-  }, []);
+  }, [initializePlayers]);
 
-  const addLog = (message: string) => {
+  const addLog = useCallback((message: string) => {
     setLogs(prevLogs => [...prevLogs, message]);
-  };
+  }, []);
 
   const loadCSV = async (file: File) => {
     try {
@@ -48,7 +46,6 @@ const PlayPage: React.FC = () => {
       const dataWithFeatures = addDerivedFeatures(normalizedData);
       setCsvData(dataWithFeatures);
       setCsvDates(dates);
-      setCurrentCsvIndex(0);
       addLog("CSV carregado e processado com sucesso!");
       addLog(`Número de registros carregados: ${dataWithFeatures.length}`);
     } catch (error) {
@@ -67,25 +64,15 @@ const PlayPage: React.FC = () => {
     }
   };
 
-  const initializePlayers = () => {
-    const newPlayers = Array.from({ length: 10 }, (_, i) => ({
-      id: i + 1,
-      score: 0,
-      predictions: []
-    }));
-    setPlayers(newPlayers);
-    addLog("Jogadores inicializados.");
-  };
-
-  const playGame = () => {
+  const playGame = useCallback(() => {
     if (!trainedModel || csvData.length === 0) {
       addLog("Não é possível iniciar o jogo. Verifique se o modelo e os dados CSV foram carregados.");
       return;
     }
     setIsPlaying(true);
     addLog("Jogo iniciado.");
-    gameLoop();
-  };
+    gameLoop(addLog);
+  }, [trainedModel, csvData, gameLoop, addLog]);
 
   const pauseGame = () => {
     setIsPlaying(false);
@@ -98,83 +85,27 @@ const PlayPage: React.FC = () => {
     setProgress(0);
     setEvolutionData([]);
     setBoardNumbers([]);
-    setCurrentCsvIndex(0);
     initializePlayers();
     setLogs([]);
     addLog("Jogo reiniciado.");
   };
 
-  const gameLoop = async () => {
-    if (!isPlaying || !trainedModel || csvData.length === 0) {
-      addLog("Não é possível continuar o jogo. Verifique se o modelo e os dados CSV foram carregados.");
-      return;
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+    if (isPlaying) {
+      intervalId = setInterval(() => {
+        gameLoop(addLog);
+        setProgress((prevProgress) => {
+          const newProgress = (prevProgress + 1) % 100;
+          if (newProgress === 99) {
+            evolveGeneration();
+          }
+          return newProgress;
+        });
+      }, 1000);
     }
-
-    if (currentCsvIndex >= csvData.length) {
-      addLog("Todos os dados do CSV foram utilizados. Reiniciando o índice.");
-      setCurrentCsvIndex(0);
-    }
-
-    const newBoardNumbers = denormalizeData([csvData[currentCsvIndex]])[0];
-    setBoardNumbers(newBoardNumbers);
-    addLog(`Banca sorteou os números: ${newBoardNumbers.join(', ')}`);
-
-    const normalizedInput = normalizeData([newBoardNumbers])[0];
-    const inputTensor = tf.tensor2d([normalizedInput]);
-    const predictions = await trainedModel.predict(inputTensor) as tf.Tensor;
-    const denormalizedPredictions = denormalizeData(await predictions.array() as number[][]);
-
-    const updatedPlayers = players.map(player => {
-      const playerPredictions = denormalizedPredictions[0].map(Math.round);
-      const matches = playerPredictions.filter(num => newBoardNumbers.includes(num)).length;
-      const reward = calculateDynamicReward(matches, players.length);
-      addLog(`Jogador ${player.id}: ${matches} acertos, recompensa ${reward}`);
-      return {
-        ...player,
-        score: player.score + reward,
-        predictions: playerPredictions
-      };
-    });
-
-    setPlayers(updatedPlayers);
-    setProgress((prevProgress) => {
-      const newProgress = (prevProgress + 1) % 100;
-      addLog(`Progresso: ${newProgress}%`);
-      return newProgress;
-    });
-    setCurrentCsvIndex(prevIndex => prevIndex + 1);
-
-    if (progress === 99) {
-      evolveGeneration();
-    } else {
-      setTimeout(gameLoop, 100);
-    }
-
-    inputTensor.dispose();
-    predictions.dispose();
-  };
-
-  const evolveGeneration = () => {
-    const bestScore = Math.max(...players.map(p => p.score));
-    const newPlayers = players.map(player => ({
-      ...player,
-      score: player.score === bestScore ? player.score : 0
-    }));
-    
-    setPlayers(newPlayers);
-    setGeneration(prev => {
-      const newGeneration = prev + 1;
-      addLog(`Geração ${newGeneration} iniciada. Melhor pontuação da geração anterior: ${bestScore}`);
-      return newGeneration;
-    });
-    setEvolutionData(prev => [...prev, { generation, score: bestScore }]);
-  };
-
-  const calculateDynamicReward = (matches: number, totalPlayers: number): number => {
-    const baseReward = Math.pow(10, matches - 10);
-    const competitionFactor = 1 + (totalPlayers / 100);
-    return Math.round(baseReward * competitionFactor);
-  };
+    return () => clearInterval(intervalId);
+  }, [isPlaying, gameLoop, addLog, evolveGeneration]);
 
   return (
     <div className="p-6">
@@ -195,9 +126,12 @@ const PlayPage: React.FC = () => {
         <Progress value={progress} className="w-full" />
       </div>
 
-      <BoardDisplay numbers={boardNumbers} />
-      <PlayerList players={players} />
-      <EvolutionChart data={evolutionData} />
+      <GameBoard
+        boardNumbers={boardNumbers}
+        players={players}
+        evolutionData={evolutionData}
+      />
+      
       <LogDisplay logs={logs} />
     </div>
   );
