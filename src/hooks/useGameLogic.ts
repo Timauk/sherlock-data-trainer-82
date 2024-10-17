@@ -33,7 +33,11 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     setBoardNumbers(newBoardNumbers);
     addLog(`Banca sorteou os números: ${newBoardNumbers.join(', ')}`);
 
-    const inputTensor = tf.tensor2d([newBoardNumbers]);
+    // Ensure we're using only the first 15 numbers and the last 2 values (assuming they are date and concurso number)
+    const inputData = [...newBoardNumbers.slice(0, 15), newBoardNumbers[newBoardNumbers.length - 2], newBoardNumbers[newBoardNumbers.length - 1]];
+    const normalizedInput = normalizeData([inputData])[0];
+    const inputTensor = tf.tensor2d([normalizedInput]);
+    
     const predictions = await trainedModel.predict(inputTensor) as tf.Tensor;
     const denormalizedPredictions = denormalizeData(await predictions.array() as number[][]);
 
