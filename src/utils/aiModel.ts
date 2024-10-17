@@ -9,9 +9,9 @@ export interface TrainingConfig {
 
 export function createModel(): tf.LayersModel {
   const model = tf.sequential();
-  model.add(tf.layers.lstm({ units: 64, inputShape: [15, 1], returnSequences: true }));
+  model.add(tf.layers.dense({ units: 128, activation: 'relu', inputShape: [15] }));
   model.add(tf.layers.dropout({ rate: 0.2 }));
-  model.add(tf.layers.lstm({ units: 32 }));
+  model.add(tf.layers.dense({ units: 64, activation: 'relu' }));
   model.add(tf.layers.dropout({ rate: 0.2 }));
   model.add(tf.layers.dense({ units: 15, activation: 'sigmoid' }));
   model.compile({ optimizer: 'adam', loss: 'binaryCrossentropy' });
@@ -23,19 +23,14 @@ export async function trainModel(
   data: number[][],
   config: TrainingConfig
 ): Promise<tf.History> {
-  const xs = tf.tensor3d(data.map(row => row.slice(0, 15).map(n => [n])));
+  const xs = tf.tensor2d(data.map(row => row.slice(0, 15)));
   const ys = tf.tensor2d(data.map(row => row.slice(15)));
-
-  const earlyStoppingCallback = tf.callbacks.earlyStopping({
-    monitor: 'val_loss',
-    patience: config.earlyStoppingPatience
-  });
 
   const history = await model.fit(xs, ys, {
     epochs: config.epochs,
     batchSize: config.batchSize,
     validationSplit: config.validationSplit,
-    callbacks: [earlyStoppingCallback]
+    callbacks: tf.callbacks.earlyStopping({ monitor: 'val_loss', patience: config.earlyStoppingPatience })
   });
 
   xs.dispose();

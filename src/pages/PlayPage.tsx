@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Progress } from "@/components/ui/progress";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { useTheme } from 'next-themes';
 import * as tf from '@tensorflow/tfjs';
 import DataUploader from '@/components/DataUploader';
@@ -98,7 +97,7 @@ const PlayPage: React.FC = () => {
     const normalizedInput = normalizeData([newBoardNumbers])[0];
     const inputTensor = tf.tensor2d([normalizedInput]);
     const predictions = await trainedModel.predict(inputTensor) as tf.Tensor;
-    const denormalizedPredictions = denormalizeData(await predictions.array());
+    const denormalizedPredictions = denormalizeData(await predictions.array() as number[][]);
 
     const updatedPlayers = players.map(player => {
       const playerPredictions = denormalizedPredictions[0].map(Math.round);
