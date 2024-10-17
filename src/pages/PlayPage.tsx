@@ -6,6 +6,11 @@ import * as tf from '@tensorflow/tfjs';
 import DataUploader from '@/components/DataUploader';
 import GameControls from '@/components/GameControls';
 import { createModel, trainModel, normalizeData, denormalizeData, addDerivedFeatures, TrainingConfig } from '@/utils/aiModel';
+import { processCSV } from '@/utils/csvUtils';
+import PlayerList from '@/components/PlayerList';
+import BoardDisplay from '@/components/BoardDisplay';
+import EvolutionChart from '@/components/EvolutionChart';
+import LogDisplay from '@/components/LogDisplay';
 
 interface Player {
   id: number;
@@ -27,8 +32,13 @@ const PlayPage: React.FC = () => {
 
   useEffect(() => {
     initializePlayers();
-    createModel().then(setTrainedModel);
+    initializeModel();
   }, []);
+
+  const initializeModel = async () => {
+    const model = await createModel();
+    setTrainedModel(model);
+  };
 
   const addLog = (message: string) => {
     setLogs(prevLogs => [...prevLogs, message]);
@@ -88,10 +98,10 @@ const PlayPage: React.FC = () => {
     const normalizedInput = normalizeData([newBoardNumbers])[0];
     const inputTensor = tf.tensor2d([normalizedInput]);
     const predictions = await trainedModel.predict(inputTensor) as tf.Tensor;
-    const denormalizedPredictions = denormalizeData(await predictions.array())[0];
+    const denormalizedPredictions = denormalizeData(await predictions.array());
 
     const updatedPlayers = players.map(player => {
-      const playerPredictions = denormalizedPredictions.map(Math.round);
+      const playerPredictions = denormalizedPredictions[0].map(Math.round);
       const matches = playerPredictions.filter(num => newBoardNumbers.includes(num)).length;
       const reward = calculateDynamicReward(matches, players.length);
       addLog(`Jogador ${player.id}: ${matches} acertos, recompensa ${reward}`);
@@ -153,47 +163,10 @@ const PlayPage: React.FC = () => {
         <Progress value={progress} className="w-full" />
       </div>
 
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold mb-2">Quadro (Banca)</h3>
-        <div className="bg-gray-100 p-4 rounded-lg">
-          {boardNumbers.map((number, index) => (
-            <span key={index} className="inline-block bg-blue-500 text-white rounded-full px-3 py-1 text-sm font-semibold mr-2 mb-2">
-              {number}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-5 gap-4 mb-8">
-        {players.map(player => (
-          <div key={player.id} className="bg-gray-100 p-4 rounded-lg">
-            <h4 className="font-semibold">Jogador {player.id}</h4>
-            <p>Pontuação: {player.score}</p>
-            <p>Previsões: {player.predictions.join(', ')}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="mb-8">
-        <h3 className="text-lg font-semibold mb-2">Evolução das Gerações</h3>
-        <LineChart width={600} height={300} data={evolutionData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="generation" />
-          <YAxis />
-          <Tooltip />
-          <Legend />
-          <Line type="monotone" dataKey="score" stroke="#8884d8" />
-        </LineChart>
-      </div>
-
-      <div className="mb-8">
-        <h3 className="text-lg font-semibold mb-2">Logs em Tempo Real</h3>
-        <div className="bg-gray-100 p-4 rounded-lg h-64 overflow-y-auto">
-          {logs.map((log, index) => (
-            <p key={index}>{log}</p>
-          ))}
-        </div>
-      </div>
+      <BoardDisplay numbers={boardNumbers} />
+      <PlayerList players={players} />
+      <EvolutionChart data={evolutionData} />
+      <LogDisplay logs={logs} />
     </div>
   );
 };
