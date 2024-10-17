@@ -28,8 +28,8 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
   }, []);
 
   const gameLoop = useCallback(async (addLog: (message: string) => void) => {
-    if (!trainedModel || csvData.length === 0) {
-      addLog("Não é possível continuar o jogo. Verifique se o modelo e os dados CSV foram carregados.");
+    if (csvData.length === 0) {
+      addLog("Não é possível continuar o jogo. Verifique se os dados CSV foram carregados.");
       return;
     }
 
@@ -38,7 +38,7 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
       setCurrentCsvIndex(0);
     }
 
-    // Usar os números diretamente do CSV para a banca
+    // Usar os números diretamente do CSV para a banca (já são inteiros)
     const newBoardNumbers = csvData[currentCsvIndex].slice(2, 17);
     setBoardNumbers(newBoardNumbers);
     setConcursoNumber(csvData[currentCsvIndex][0]); // Assumindo que o número do concurso é o primeiro elemento
@@ -46,11 +46,9 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
 
     const inputData = [...csvData[currentCsvIndex].slice(2, 17), csvData[currentCsvIndex][1]]; // Incluindo a data do sorteio
     const normalizedInput = normalizeData([inputData])[0];
-    // Adjust the input shape to match the model's expectation: [null,null,17]
     const inputTensor = tf.tensor3d([normalizedInput], [1, 1, normalizedInput.length]);
     
     const updatedPlayers = await Promise.all(players.map(async player => {
-      // Aplicar parâmetros aleatórios ao modelo do jogador
       const randomizedModel = await randomizeModelParams(player.model);
       const predictions = await randomizedModel.predict(inputTensor) as tf.Tensor;
       const denormalizedPredictions = denormalizeData(await predictions.array() as number[][]);
@@ -69,7 +67,6 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     setPlayers(updatedPlayers);
     setCurrentCsvIndex(prevIndex => prevIndex + 1);
 
-    // Atualizar o gráfico de evolução em tempo real para cada jogador
     setEvolutionData(prev => [
       ...prev,
       ...updatedPlayers.map(player => ({
@@ -80,7 +77,7 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     ]);
 
     inputTensor.dispose();
-  }, [players, currentCsvIndex, csvData, trainedModel, generation]);
+  }, [players, currentCsvIndex, csvData, generation]);
 
   const evolveGeneration = useCallback(() => {
     const bestScore = Math.max(...players.map(p => p.score));
