@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Progress } from "@/components/ui/progress";
 import { useTheme } from 'next-themes';
 import * as tf from '@tensorflow/tfjs';
 import DataUploader from '@/components/DataUploader';
@@ -10,6 +9,7 @@ import PlayerList from '@/components/PlayerList';
 import BoardDisplay from '@/components/BoardDisplay';
 import EvolutionChart from '@/components/EvolutionChart';
 import LogDisplay from '@/components/LogDisplay';
+import { Progress } from "@/components/ui/progress";
 
 interface Player {
   id: number;
@@ -39,25 +39,29 @@ const PlayPage: React.FC = () => {
   };
 
   const loadCSV = async (file: File) => {
-    const text = await file.text();
-    const data = processCSV(text);
-    const dates = extractDateFromCSV(text);
-    const normalizedData = normalizeData(data);
-    const dataWithFeatures = addDerivedFeatures(normalizedData);
-    setCsvData(dataWithFeatures);
-    setCsvDates(dates);
-    addLog("CSV carregado e processado com sucesso!");
-    addLog(`Número de registros carregados: ${dataWithFeatures.length}`);
+    try {
+      const text = await file.text();
+      const data = processCSV(text);
+      const dates = extractDateFromCSV(text);
+      const normalizedData = normalizeData(data);
+      const dataWithFeatures = addDerivedFeatures(normalizedData);
+      setCsvData(dataWithFeatures);
+      setCsvDates(dates);
+      addLog("CSV carregado e processado com sucesso!");
+      addLog(`Número de registros carregados: ${dataWithFeatures.length}`);
+    } catch (error) {
+      addLog(`Erro ao carregar CSV: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    }
   };
 
   const loadModel = async (jsonFile: File, weightsFile: File) => {
     try {
       const model = await tf.loadLayersModel(tf.io.browserFiles([jsonFile, weightsFile]));
       setTrainedModel(model);
-      addLog("Modelo treinado carregado com sucesso!");
+      addLog("Modelo carregado com sucesso!");
     } catch (error) {
-      console.error("Erro ao carregar o modelo:", error);
-      addLog("Erro ao carregar o modelo. Verifique o console para mais detalhes.");
+      addLog(`Erro ao carregar o modelo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      console.error("Detalhes do erro:", error);
     }
   };
 
@@ -72,6 +76,10 @@ const PlayPage: React.FC = () => {
   };
 
   const playGame = () => {
+    if (!trainedModel || csvData.length === 0) {
+      addLog("Não é possível iniciar o jogo. Verifique se o modelo e os dados CSV foram carregados.");
+      return;
+    }
     setIsPlaying(true);
     addLog("Jogo iniciado.");
     gameLoop();
@@ -95,7 +103,7 @@ const PlayPage: React.FC = () => {
 
   const gameLoop = async () => {
     if (!isPlaying || !trainedModel || csvData.length === 0) {
-      addLog("Não é possível iniciar o jogo. Verifique se o modelo e os dados CSV foram carregados.");
+      addLog("Não é possível continuar o jogo. Verifique se o modelo e os dados CSV foram carregados.");
       return;
     }
 
