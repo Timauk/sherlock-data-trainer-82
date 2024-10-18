@@ -13,6 +13,7 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
   const [evolutionData, setEvolutionData] = useState<any[]>([]);
   const [boardNumbers, setBoardNumbers] = useState<number[]>([]);
   const [concursoNumber, setConcursoNumber] = useState(0);
+  const [isInfiniteMode, setIsInfiniteMode] = useState(false);
 
   const initializePlayers = useCallback(() => {
     const newPlayers = Array.from({ length: 10 }, (_, i) => ({
@@ -65,15 +66,33 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
   }, [players, boardNumbers, concursoNumber, generation, trainedModel]);
 
   const evolveGeneration = useCallback(() => {
-    const bestScore = Math.max(...players.map(p => p.score));
-    const newPlayers = players.map(player => ({
-      ...player,
-      score: player.score === bestScore ? player.score : 0
-    }));
+    const bestPlayer = players.reduce((prev, current) => (prev.score > current.score) ? prev : current);
+    
+    const newPlayers = players.map(player => {
+      const clonedModel = tf.sequential();
+      trainedModel?.layers.forEach((layer) => {
+        const clonedLayer = tf.layers.dense({
+          units: layer.units,
+          activation: layer.activation?.getClassName(),
+          inputShape: layer.inputShape
+        });
+        clonedLayer.setWeights(layer.getWeights().map(w => {
+          const randomFactor = 1 + (Math.random() * 0.2 - 0.1); // -10% to +10%
+          return w.mul(tf.scalar(randomFactor));
+        }));
+        clonedModel.add(clonedLayer);
+      });
+      
+      return {
+        ...player,
+        score: 0,
+        predictions: []
+      };
+    });
     
     setPlayers(newPlayers);
     setGeneration(prev => prev + 1);
-  }, [players]);
+  }, [players, trainedModel]);
 
   const calculateDynamicReward = (matches: number): number => {
     return matches > 12 ? Math.pow(2, matches - 12) : -Math.pow(2, 12 - matches);
@@ -85,10 +104,12 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     evolutionData,
     boardNumbers,
     concursoNumber,
+    isInfiniteMode,
     setGeneration,
     setEvolutionData,
     setBoardNumbers,
     setConcursoNumber,
+    setIsInfiniteMode,
     initializePlayers,
     gameLoop,
     evolveGeneration

@@ -7,6 +7,7 @@ import GameBoard from '@/components/GameBoard';
 import LogDisplay from '@/components/LogDisplay';
 import { Progress } from "@/components/ui/progress";
 import { useGameLogic } from '@/hooks/useGameLogic';
+import { Button } from "@/components/ui/button";
 
 const PlayPage: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -23,10 +24,12 @@ const PlayPage: React.FC = () => {
     evolutionData,
     boardNumbers,
     concursoNumber,
+    isInfiniteMode,
     setGeneration,
     setEvolutionData,
     setBoardNumbers,
     setConcursoNumber,
+    setIsInfiniteMode,
     initializePlayers,
     gameLoop,
     evolveGeneration
@@ -100,6 +103,11 @@ const PlayPage: React.FC = () => {
     addLog("Jogo reiniciado.");
   };
 
+  const toggleInfiniteMode = () => {
+    setIsInfiniteMode(!isInfiniteMode);
+    addLog(`Modo infinito ${!isInfiniteMode ? 'ativado' : 'desativado'}.`);
+  };
+
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
     if (isPlaying) {
@@ -107,24 +115,24 @@ const PlayPage: React.FC = () => {
         const currentIndex = Math.floor(progress / 100 * csvData.length);
         if (currentIndex < csvData.length) {
           setBoardNumbers(csvData[currentIndex]);
-          setConcursoNumber(currentIndex + 1); // Assumindo que o primeiro concurso é 1
+          setConcursoNumber(currentIndex + 1);
           setProgress((prevProgress) => {
             const newProgress = prevProgress + (100 / csvData.length);
             if (newProgress >= 100) {
               evolveGeneration();
-              return 0;
+              return isInfiniteMode ? 0 : 100;
             }
             return newProgress;
           });
           gameLoop(addLog);
-        } else {
+        } else if (!isInfiniteMode) {
           setIsPlaying(false);
           addLog("Todos os concursos foram processados.");
         }
       }, 1000);
     }
     return () => clearInterval(intervalId);
-  }, [isPlaying, csvData, progress, gameLoop, addLog, evolveGeneration, setBoardNumbers, setConcursoNumber]);
+  }, [isPlaying, csvData, progress, gameLoop, addLog, evolveGeneration, setBoardNumbers, setConcursoNumber, isInfiniteMode]);
 
   return (
     <div className="p-6">
@@ -139,6 +147,10 @@ const PlayPage: React.FC = () => {
         onReset={resetGame}
         onThemeToggle={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
       />
+
+      <Button onClick={toggleInfiniteMode} className="mt-2">
+        {isInfiniteMode ? 'Desativar' : 'Ativar'} Modo Infinito
+      </Button>
 
       <div className="mb-4">
         <h3 className="text-lg font-semibold mb-2">Progresso da Geração {generation}</h3>
