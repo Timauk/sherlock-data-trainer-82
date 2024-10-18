@@ -1,6 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import * as tf from '@tensorflow/tfjs';
-import { normalizeData, denormalizeData, createModel } from '@/utils/aiModel';
 
 interface Player {
   id: number;
@@ -13,7 +12,6 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
   const [generation, setGeneration] = useState(1);
   const [evolutionData, setEvolutionData] = useState<any[]>([]);
   const [boardNumbers, setBoardNumbers] = useState<number[]>([]);
-  const [currentCsvIndex, setCurrentCsvIndex] = useState(0);
   const [concursoNumber, setConcursoNumber] = useState(0);
 
   const initializePlayers = useCallback(() => {
@@ -31,26 +29,17 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
       return;
     }
 
-    if (currentCsvIndex >= csvData.length) {
-      addLog("Todos os dados do CSV foram utilizados. Reiniciando o índice.");
-      setCurrentCsvIndex(0);
-    }
+    addLog(`Banca sorteou os números para o concurso #${concursoNumber}: ${boardNumbers.join(', ')}`);
 
-    const newBoardNumbers = csvData[currentCsvIndex].slice(2, 17);
-    setBoardNumbers(newBoardNumbers);
-    setConcursoNumber(csvData[currentCsvIndex][0]);
-    addLog(`Banca sorteou os números para o concurso #${csvData[currentCsvIndex][0]}: ${newBoardNumbers.join(', ')}`);
-
-    const inputData = [...csvData[currentCsvIndex].slice(2, 17), csvData[currentCsvIndex][1]];
-    const normalizedInput = normalizeData([inputData])[0];
-    const inputTensor = tf.tensor3d([normalizedInput], [1, 1, normalizedInput.length]);
+    const inputData = [...boardNumbers, concursoNumber];
+    const inputTensor = tf.tensor3d([inputData], [1, 1, inputData.length]);
     
     const predictions = await trainedModel.predict(inputTensor) as tf.Tensor;
-    const denormalizedPredictions = denormalizeData(await predictions.array() as number[][]);
+    const denormalizedPredictions = await predictions.array() as number[][];
     
     const updatedPlayers = players.map(player => {
       const playerPredictions = denormalizedPredictions[0].map(num => Math.round(num));
-      const matches = playerPredictions.filter(num => newBoardNumbers.includes(num)).length;
+      const matches = playerPredictions.filter(num => boardNumbers.includes(num)).length;
       const reward = calculateDynamicReward(matches);
       addLog(`Jogador ${player.id}: ${matches} acertos, recompensa ${reward}`);
       return {
@@ -61,7 +50,6 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     });
 
     setPlayers(updatedPlayers);
-    setCurrentCsvIndex(prevIndex => prevIndex + 1);
 
     setEvolutionData(prev => [
       ...prev,
@@ -74,7 +62,7 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
 
     inputTensor.dispose();
     predictions.dispose();
-  }, [players, currentCsvIndex, csvData, generation, trainedModel]);
+  }, [players, boardNumbers, concursoNumber, generation, trainedModel]);
 
   const evolveGeneration = useCallback(() => {
     const bestScore = Math.max(...players.map(p => p.score));
@@ -100,6 +88,7 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     setGeneration,
     setEvolutionData,
     setBoardNumbers,
+    setConcursoNumber,
     initializePlayers,
     gameLoop,
     evolveGeneration

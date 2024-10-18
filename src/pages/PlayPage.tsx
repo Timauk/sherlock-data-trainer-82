@@ -1,14 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from 'next-themes';
-import * as tf from '@tensorflow/tfjs';
 import DataUploader from '@/components/DataUploader';
 import GameControls from '@/components/GameControls';
 import GameBoard from '@/components/GameBoard';
 import LogDisplay from '@/components/LogDisplay';
 import { Progress } from "@/components/ui/progress";
 import { useGameLogic } from '@/hooks/useGameLogic';
-import { processCSV, extractDateFromCSV } from '@/utils/csvUtils';
-import { normalizeData, addDerivedFeatures } from '@/utils/aiModel';
 
 const PlayPage: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -44,14 +41,21 @@ const PlayPage: React.FC = () => {
   const loadCSV = async (file: File) => {
     try {
       const text = await file.text();
-      const data = processCSV(text);
-      const dates = extractDateFromCSV(text);
-      const normalizedData = normalizeData(data);
-      const dataWithFeatures = addDerivedFeatures(normalizedData);
-      setCsvData(dataWithFeatures);
-      setCsvDates(dates);
+      const lines = text.trim().split('\n').slice(1); // Ignorar o cabeçalho
+      const data = lines.map(line => {
+        const values = line.split(',');
+        return {
+          concurso: parseInt(values[0], 10),
+          data: new Date(values[1].split('/').reverse().join('-')),
+          bolas: values.slice(2).map(Number)
+        };
+      });
+      setCsvData(data.map(d => d.bolas));
+      setCsvDates(data.map(d => d.data));
+      setBoardNumbers(data[0].bolas);
+      setConcursoNumber(data[0].concurso);
       addLog("CSV carregado e processado com sucesso!");
-      addLog(`Número de registros carregados: ${dataWithFeatures.length}`);
+      addLog(`Número de registros carregados: ${data.length}`);
     } catch (error) {
       addLog(`Erro ao carregar CSV: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
@@ -98,18 +102,27 @@ const PlayPage: React.FC = () => {
     let intervalId: NodeJS.Timeout;
     if (isPlaying) {
       intervalId = setInterval(() => {
-        gameLoop(addLog);
-        setProgress((prevProgress) => {
-          const newProgress = (prevProgress + 1) % 100;
-          if (newProgress === 99) {
-            evolveGeneration();
-          }
-          return newProgress;
-        });
+        const currentIndex = Math.floor(progress / 100 * csvData.length);
+        if (currentIndex < csvData.length) {
+          setBoardNumbers(csvData[currentIndex]);
+          setConcursoNumber(currentIndex + 1); // Assumindo que o primeiro concurso é 1
+          setProgress((prevProgress) => {
+            const newProgress = prevProgress + (100 / csvData.length);
+            if (newProgress >= 100) {
+              evolveGeneration();
+              return 0;
+            }
+            return newProgress;
+          });
+          gameLoop(addLog);
+        } else {
+          setIsPlaying(false);
+          addLog("Todos os concursos foram processados.");
+        }
       }, 1000);
     }
     return () => clearInterval(intervalId);
-  }, [isPlaying, gameLoop, addLog, evolveGeneration]);
+  }, [isPlaying, csvData, progress, gameLoop, addLog, evolveGeneration, setBoardNumbers]);
 
   return (
     <div className="p-6">
