@@ -32,7 +32,7 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     addLog(`Banca sorteou os números para o concurso #${concursoNumber}: ${boardNumbers.join(', ')}`);
 
     const inputData = [...boardNumbers, concursoNumber];
-    const inputTensor = tf.tensor3d([inputData], [1, 1, inputData.length]);
+    const inputTensor = tf.tensor2d([inputData]);
     
     const predictions = await trainedModel.predict(inputTensor) as tf.Tensor;
     const denormalizedPredictions = await predictions.array() as number[][];

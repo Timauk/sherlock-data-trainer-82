@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from 'next-themes';
+import * as tf from '@tensorflow/tfjs';
 import DataUploader from '@/components/DataUploader';
 import GameControls from '@/components/GameControls';
 import GameBoard from '@/components/GameBoard';
@@ -25,6 +26,7 @@ const PlayPage: React.FC = () => {
     setGeneration,
     setEvolutionData,
     setBoardNumbers,
+    setConcursoNumber,
     initializePlayers,
     gameLoop,
     evolveGeneration
@@ -122,7 +124,7 @@ const PlayPage: React.FC = () => {
       }, 1000);
     }
     return () => clearInterval(intervalId);
-  }, [isPlaying, csvData, progress, gameLoop, addLog, evolveGeneration, setBoardNumbers]);
+  }, [isPlaying, csvData, progress, gameLoop, addLog, evolveGeneration, setBoardNumbers, setConcursoNumber]);
 
   return (
     <div className="p-6">
