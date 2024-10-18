@@ -25,10 +25,6 @@ const PlayPage: React.FC = () => {
     boardNumbers,
     concursoNumber,
     isInfiniteMode,
-    setGeneration,
-    setEvolutionData,
-    setBoardNumbers,
-    setConcursoNumber,
     setIsInfiniteMode,
     initializePlayers,
     gameLoop,
@@ -57,8 +53,6 @@ const PlayPage: React.FC = () => {
       });
       setCsvData(data.map(d => d.bolas));
       setCsvDates(data.map(d => d.data));
-      setBoardNumbers(data[0].bolas);
-      setConcursoNumber(data[0].concurso);
       addLog("CSV carregado e processado com sucesso!");
       addLog(`Número de registros carregados: ${data.length}`);
     } catch (error) {
@@ -84,7 +78,7 @@ const PlayPage: React.FC = () => {
     }
     setIsPlaying(true);
     addLog("Jogo iniciado.");
-    gameLoop(addLog);
+    gameLoop();
   }, [trainedModel, csvData, gameLoop, addLog]);
 
   const pauseGame = () => {
@@ -94,10 +88,7 @@ const PlayPage: React.FC = () => {
 
   const resetGame = () => {
     setIsPlaying(false);
-    setGeneration(1);
     setProgress(0);
-    setEvolutionData([]);
-    setBoardNumbers([]);
     initializePlayers();
     setLogs([]);
     addLog("Jogo reiniciado.");
@@ -112,27 +103,19 @@ const PlayPage: React.FC = () => {
     let intervalId: NodeJS.Timeout;
     if (isPlaying) {
       intervalId = setInterval(() => {
-        const currentIndex = Math.floor(progress / 100 * csvData.length);
-        if (currentIndex < csvData.length) {
-          setBoardNumbers(csvData[currentIndex]);
-          setConcursoNumber(currentIndex + 1);
-          setProgress((prevProgress) => {
-            const newProgress = prevProgress + (100 / csvData.length);
-            if (newProgress >= 100) {
-              evolveGeneration();
-              return isInfiniteMode ? 0 : 100;
-            }
-            return newProgress;
-          });
-          gameLoop(addLog);
-        } else if (!isInfiniteMode) {
-          setIsPlaying(false);
-          addLog("Todos os concursos foram processados.");
-        }
+        gameLoop();
+        setProgress((prevProgress) => {
+          const newProgress = prevProgress + (100 / csvData.length);
+          if (newProgress >= 100) {
+            evolveGeneration();
+            return isInfiniteMode ? 0 : 100;
+          }
+          return newProgress;
+        });
       }, 1000);
     }
     return () => clearInterval(intervalId);
-  }, [isPlaying, csvData, progress, gameLoop, addLog, evolveGeneration, setBoardNumbers, setConcursoNumber, isInfiniteMode]);
+  }, [isPlaying, csvData, gameLoop, evolveGeneration, isInfiniteMode]);
 
   return (
     <div className="p-6">
