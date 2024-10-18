@@ -31,10 +31,6 @@ const PlayPage: React.FC = () => {
     evolveGeneration
   } = useGameLogic(csvData, trainedModel);
 
-  useEffect(() => {
-    initializePlayers();
-  }, [initializePlayers]);
-
   const addLog = useCallback((message: string) => {
     setLogs(prevLogs => [...prevLogs, message]);
   }, []);
