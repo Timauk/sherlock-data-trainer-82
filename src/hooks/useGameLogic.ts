@@ -82,7 +82,6 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
             case 'Conv2D':
               clonedLayer = tf.layers.conv2d(config as tf.layers.Conv2DLayerArgs);
               break;
-            // Add more cases for other layer types as needed
             default:
               console.warn(`Unsupported layer type: ${layer.getClassName()}`);
           }
