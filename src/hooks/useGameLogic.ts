@@ -60,7 +60,7 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     ]);
 
     predictions.dispose();
-  }, [players, boardNumbers, concursoNumber, generation, trainedModel, csvData]);
+  }, [players, boardNumbers, concursoNumber, generation, trainedModel]);
 
   const evolveGeneration = useCallback(() => {
     const newPlayers = players.map(() => {
