@@ -30,7 +30,9 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
 
   const makePrediction = (inputData: number[]): number[] => {
     if (!trainedModel) return [];
-    const inputTensor = tf.tensor2d([inputData]);
+    // Ensure the input shape is correct (add concursoNumber to make it 17 elements)
+    const input = [...inputData, concursoNumber];
+    const inputTensor = tf.tensor2d([input]);
     const predictions = trainedModel.predict(inputTensor) as tf.Tensor;
     const result = Array.from(predictions.dataSync());
     inputTensor.dispose();
@@ -45,7 +47,7 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     setBoardNumbers(currentBoardNumbers);
 
     const updatedPlayers = players.map(player => {
-      const playerPredictions = makePrediction([...currentBoardNumbers, concursoNumber]);
+      const playerPredictions = makePrediction(currentBoardNumbers);
       const matches = playerPredictions.filter(num => currentBoardNumbers.includes(num)).length;
       const reward = calculateDynamicReward(matches);
       return {
