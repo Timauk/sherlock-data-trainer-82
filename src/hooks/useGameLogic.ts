@@ -39,7 +39,7 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     const denormalizedPredictions = await predictions.array() as number[][];
     
     const updatedPlayers = players.map(player => {
-      const playerPredictions = denormalizedPredictions[0].map(num => Math.round(num));
+      const playerPredictions = denormalizedPredictions[0].map(num => Math.round(num * 25));
       const matches = playerPredictions.filter(num => boardNumbers.includes(num)).length;
       const reward = calculateDynamicReward(matches);
       addLog(`Jogador ${player.id}: ${matches} acertos, recompensa ${reward}`);
@@ -77,10 +77,10 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
           
           switch (layer.getClassName()) {
             case 'Dense':
-              clonedLayer = tf.layers.dense(config as tf.layers.DenseLayerArgs);
+              clonedLayer = tf.layers.dense(config);
               break;
             case 'Conv2D':
-              clonedLayer = tf.layers.conv2d(config as tf.layers.Conv2DLayerArgs);
+              clonedLayer = tf.layers.conv2d(config);
               break;
             default:
               console.warn(`Unsupported layer type: ${layer.getClassName()}`);
