@@ -71,16 +71,17 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
     const newPlayers = players.map(player => {
       const clonedModel = tf.sequential();
       trainedModel?.layers.forEach((layer) => {
-        const clonedLayer = tf.layers.dense({
-          units: layer.units,
-          activation: layer.activation?.getClassName(),
-          inputShape: layer.inputShape
-        });
-        clonedLayer.setWeights(layer.getWeights().map(w => {
-          const randomFactor = 1 + (Math.random() * 0.2 - 0.1); // -10% to +10%
-          return w.mul(tf.scalar(randomFactor));
-        }));
-        clonedModel.add(clonedLayer);
+        if (layer instanceof tf.layers.Layer) {
+          const config = layer.getConfig();
+          const clonedLayer = tf.layers.getLayer({className: layer.getClassName(), config});
+          if (clonedLayer) {
+            clonedLayer.setWeights(layer.getWeights().map(w => {
+              const randomFactor = 1 + (Math.random() * 0.2 - 0.1); // -10% to +10%
+              return w.mul(tf.scalar(randomFactor));
+            }));
+            clonedModel.add(clonedLayer);
+          }
+        }
       });
       
       return {
