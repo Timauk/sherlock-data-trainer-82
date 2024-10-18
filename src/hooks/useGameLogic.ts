@@ -73,7 +73,20 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
       trainedModel?.layers.forEach((layer) => {
         if (layer instanceof tf.layers.Layer) {
           const config = layer.getConfig();
-          const clonedLayer = tf.layers.getLayer({className: layer.getClassName(), config});
+          let clonedLayer: tf.layers.Layer | null = null;
+          
+          switch (layer.getClassName()) {
+            case 'Dense':
+              clonedLayer = tf.layers.dense(config as tf.layers.DenseLayerArgs);
+              break;
+            case 'Conv2D':
+              clonedLayer = tf.layers.conv2d(config as tf.layers.Conv2DLayerArgs);
+              break;
+            // Add more cases for other layer types as needed
+            default:
+              console.warn(`Unsupported layer type: ${layer.getClassName()}`);
+          }
+
           if (clonedLayer) {
             clonedLayer.setWeights(layer.getWeights().map(w => {
               const randomFactor = 1 + (Math.random() * 0.2 - 0.1); // -10% to +10%
