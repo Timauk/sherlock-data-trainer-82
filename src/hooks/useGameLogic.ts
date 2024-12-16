@@ -30,14 +30,27 @@ export const useGameLogic = (csvData: number[][], trainedModel: tf.LayersModel |
 
   const makePrediction = (inputData: number[]): number[] => {
     if (!trainedModel) return [];
-    // Ensure the input shape is correct (add concursoNumber to make it 17 elements)
-    const input = [...inputData, concursoNumber];
-    const inputTensor = tf.tensor2d([input]);
-    const predictions = trainedModel.predict(inputTensor) as tf.Tensor;
-    const result = Array.from(predictions.dataSync());
-    inputTensor.dispose();
-    predictions.dispose();
-    return result.map(num => Math.round(num * 24) + 1);
+    
+    try {
+      // Create a tensor with the correct shape [1, 15] for the input data
+      const inputTensor = tf.tensor2d([inputData.slice(0, 15)]);
+      
+      // Log shapes for debugging
+      console.log('Input tensor shape:', inputTensor.shape);
+      console.log('Model input shape:', trainedModel.inputs[0].shape);
+      
+      const predictions = trainedModel.predict(inputTensor) as tf.Tensor;
+      const result = Array.from(predictions.dataSync());
+      
+      // Cleanup
+      inputTensor.dispose();
+      predictions.dispose();
+      
+      return result.map(num => Math.round(num * 24) + 1);
+    } catch (error) {
+      console.error('Prediction error:', error);
+      return [];
+    }
   };
 
   const gameLoop = useCallback(() => {
